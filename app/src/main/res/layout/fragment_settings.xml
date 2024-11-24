@@ -1,36 +1,122 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scrollView_settings"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.settings.SettingsFragment">
+    android:background="?android:windowBackground">
 
-    <!-- Title TextView -->
-    <TextView
-        android:id="@+id/text_settings"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/settings_container"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Settings Page"
-        android:textColor="?android:textColorPrimary"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="32dp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-    <!-- Theme Toggle Switch -->
-    <androidx.appcompat.widget.SwitchCompat
-        android:id="@+id/theme_toggle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Dark Mode"
-        android:textColor="?android:textColorPrimary"
-        app:layout_constraintTop_toBottomOf="@id/text_settings"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="16dp" />
+        <!-- Profile Option -->
+        <TextView
+            android:id="@+id/option_profile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Profile"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <!-- Notification Option -->
+        <TextView
+            android:id="@+id/option_notification"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Notification"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
+
+        <!-- Appearance Option -->
+        <TextView
+            android:id="@+id/option_appearance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Appearance"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
+
+        <!-- Dark Mode Toggle (Initially Hidden) -->
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/theme_toggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Dark Mode"
+            android:visibility="gone"
+            android:layout_marginStart="32dp"
+            android:paddingVertical="8dp" />
+
+        <!-- Export Data Option -->
+        <TextView
+            android:id="@+id/option_export_data"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Export Data"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
+
+        <!-- Test Option -->
+        <TextView
+            android:id="@+id/option_test"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Test"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
+
+        <!-- Tutorial Option -->
+        <TextView
+            android:id="@+id/option_tutorial"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tutorial"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
+
+        <!-- Help Option -->
+        <TextView
+            android:id="@+id/option_help"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Help"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
+
+        <!-- About Us Option -->
+        <TextView
+            android:id="@+id/option_about_us"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="About Us"
+            android:textAppearance="?android:attr/textAppearanceMedium"
+            android:paddingVertical="12dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground" />
+
+    </LinearLayout>
+</ScrollView>
