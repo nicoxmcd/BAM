@@ -11,6 +11,8 @@ import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
+import com.example.bam_monitoring.R
 import com.example.bam_monitoring.databinding.FragmentSettingsBinding
 
 class SettingsFragment : Fragment() {
@@ -81,10 +83,12 @@ class SettingsFragment : Fragment() {
             activity?.recreate()
         }
 
-        // Handle other options (Add click listeners as needed)
+        // Navigate to ProfileFragment when "Profile" is clicked
         binding.optionProfile.setOnClickListener {
-            // Implement action for Profile option
+            findNavController().navigate(R.id.action_settings_to_profile)
         }
+
+        // Handle other options (Add click listeners as needed)
         binding.optionNotification.setOnClickListener {
             // Implement action for Notification option
         }
