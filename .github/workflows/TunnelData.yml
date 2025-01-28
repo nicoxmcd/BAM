@@ -1,0 +1,35 @@
+name: Send Data to BAM Application
+run-name: Sending Data to BAM Application ${ github.event }:${ github.run_number }
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '* * * * *' 
+    
+jobs:
+  send-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests  # Install the `requests` library to send HTTP requests
+      
+      - name: Send sensor data to GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the GitHub token to authenticate
+        run: |
+          # Use the Edge Impulse API or any custom data source to get the sensor data
+          sensor_data="Sensor data example"  # Replace this with your actual data, e.g., from Edge Impulse API
+
+          # Prepare JSON payload to create an issue on GitHub
+          curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+            -d "{\"title\": \"New Sensor Data\", \"body\": \"$sensor_data\"}" \
+            "https://api.github.com/repos/nicoxmcd/BAM/issues"
