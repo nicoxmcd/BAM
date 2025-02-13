@@ -1,5 +1,6 @@
 #include <bluefruit.h>
 #include <EdgeImpulse_Inference.h>
+#include <Adafruit_TinyUSB.h>
 
 BLEUart bleuart;
 
@@ -30,3 +31,4 @@ void loop() {
 
     delay(100);
 }
+
