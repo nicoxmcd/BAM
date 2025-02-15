@@ -1,5 +1,6 @@
 package com.example.bam_monitoring.ble
 
+import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
@@ -7,6 +8,7 @@ import android.content.Context
 import android.util.Log
 import java.util.UUID
 
+@SuppressLint("MissingPermission")
 class BleManager(private val context: Context) {
     private val bluetoothManager: BluetoothManager =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
