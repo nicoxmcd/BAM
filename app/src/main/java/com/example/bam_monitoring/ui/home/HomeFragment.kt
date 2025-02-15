@@ -6,86 +6,112 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import com.example.bam_monitoring.MainActivity
 import com.example.bam_monitoring.databinding.FragmentHomeBinding
+import com.example.bam_monitoring.ble.BleManager
+import java.util.ArrayDeque
 
 class HomeFragment : Fragment() {
 
-    // View Binding instance
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
-    // SharedPreferences file name and key
     private val PREFS_NAME = "user_profile"
     private val KEY_NAME = "name"
-
-    // Flag to track logo transformation state
     private var isTransformed = false
+
+    // Use an ArrayDeque to hold up to 8 diagnostic lines.
+    private val diagnosticLines = ArrayDeque<String>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        // Inflate the layout using View Binding
+    ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         return binding.root
     }
 
-    // This method is called after onCreateView
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Access SharedPreferences
+        // Set initial alpha values: greeting visible, diagnostics hidden.
+        binding.textHello.alpha = 1f
+        binding.textDiagnostic.alpha = 0f
+
+        // Update greeting text based on SharedPreferences.
         val sharedPreferences = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-        // Retrieve the stored name, default to null if not found
         val name = sharedPreferences.getString(KEY_NAME, null)
-
-        // Update the greeting TextView based on whether a name is available
         binding.textHello.text = if (!name.isNullOrEmpty()) "Hello, $name!" else "Hello!"
 
-        // Set click listener on the logo image to trigger animations
+        // Set click listener on the logo to toggle animation and BLE scanning.
         binding.logoImage.setOnClickListener {
             if (!isTransformed) {
-                // Animate the logo: shrink and move upward
+                // Animate logo: shrink and move upward.
                 binding.logoImage.animate()
                     .scaleX(0.4f)
                     .scaleY(0.4f)
-                    // Moves the logo upward by its current top offset plus an extra 20 pixels (adjust as needed)
                     .translationY(-binding.logoImage.top.toFloat() - 20)
                     .setDuration(500)
+                    .withEndAction {
+                        (activity as? MainActivity)?.bleManager?.startScan()
+                    }
                     .start()
 
-                // Animate the greeting text to fade out quickly
+                // Animate texts: fade out greeting, fade in diagnostics.
                 binding.textHello.animate()
                     .alpha(0f)
+                    .setDuration(300)
+                    .start()
+                binding.textDiagnostic.animate()
+                    .alpha(1f)
                     .setDuration(300)
                     .start()
 
                 isTransformed = true
             } else {
-                // Reverse the animation: restore original size and position
+                // Animate logo: revert scale and translation.
                 binding.logoImage.animate()
                     .scaleX(1f)
                     .scaleY(1f)
                     .translationY(0f)
                     .setDuration(500)
+                    .withEndAction {
+                        (activity as? MainActivity)?.bleManager?.stopScan()
+                    }
                     .start()
 
-                // Fade the greeting text back in
+                // Animate texts: fade in greeting, fade out diagnostics.
                 binding.textHello.animate()
                     .alpha(1f)
+                    .setDuration(300)
+                    .start()
+                binding.textDiagnostic.animate()
+                    .alpha(0f)
                     .setDuration(300)
                     .start()
 
                 isTransformed = false
             }
         }
+
+        // Register a diagnostic listener to update the diagnostics text box with a rolling log.
+        (activity as? MainActivity)?.bleManager?.diagnosticListener = object : BleManager.DiagnosticListener {
+            override fun onDiagnostic(message: String) {
+                requireActivity().runOnUiThread {
+                    // Maintain a maximum of 8 lines.
+                    if (diagnosticLines.size >= 8) {
+                        diagnosticLines.removeFirst()
+                    }
+                    diagnosticLines.addLast(message)
+                    binding.textDiagnostic.text = diagnosticLines.joinToString(separator = "\n")
+                }
+            }
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Nullify the binding reference to avoid memory leaks
+        (activity as? MainActivity)?.bleManager?.diagnosticListener = null
         _binding = null
     }
 }
-

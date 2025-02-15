@@ -10,6 +10,13 @@ import java.util.UUID
 
 @SuppressLint("MissingPermission")
 class BleManager(private val context: Context) {
+
+    // Diagnostic listener interface
+    interface DiagnosticListener {
+        fun onDiagnostic(message: String)
+    }
+    var diagnosticListener: DiagnosticListener? = null
+
     private val bluetoothManager: BluetoothManager =
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
@@ -23,21 +30,27 @@ class BleManager(private val context: Context) {
     fun startScan() {
         val scanner = bluetoothAdapter?.bluetoothLeScanner
         scanner?.startScan(scanCallback)
-        Log.d("BleManager", "BLE scan started")
+        val msg = "BLE scan started"
+        Log.d("BleManager", msg)
+        diagnosticListener?.onDiagnostic(msg)
     }
 
     // Stop scanning when no longer needed
     fun stopScan() {
         val scanner = bluetoothAdapter?.bluetoothLeScanner
         scanner?.stopScan(scanCallback)
-        Log.d("BleManager", "BLE scan stopped")
+        val msg = "BLE scan stopped"
+        Log.d("BleManager", msg)
+        diagnosticListener?.onDiagnostic(msg)
     }
 
     // Scan callback that handles discovered devices
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.device?.let { device ->
-                Log.d("BleManager", "Found device: ${device.name} - ${device.address}")
+                val msg = "Found device: ${device.name} - ${device.address}"
+                Log.d("BleManager", msg)
+                diagnosticListener?.onDiagnostic(msg)
                 // Connect to the first discovered device (add filtering as needed)
                 if (bluetoothGatt == null) {
                     connectToDevice(device)
@@ -46,13 +59,17 @@ class BleManager(private val context: Context) {
         }
 
         override fun onScanFailed(errorCode: Int) {
-            Log.e("BleManager", "BLE scan failed with error code: $errorCode")
+            val msg = "BLE scan failed with error code: $errorCode"
+            Log.e("BleManager", msg)
+            diagnosticListener?.onDiagnostic(msg)
         }
     }
 
     // Connect to the discovered BLE device
     private fun connectToDevice(device: BluetoothDevice) {
-        Log.d("BleManager", "Connecting to device: ${device.address}")
+        val msg = "Connecting to device: ${device.address}"
+        Log.d("BleManager", msg)
+        diagnosticListener?.onDiagnostic(msg)
         bluetoothGatt = device.connectGatt(context, false, gattCallback)
     }
 
@@ -60,10 +77,14 @@ class BleManager(private val context: Context) {
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.d("BleManager", "Connected to GATT server. Discovering services...")
+                val msg = "Connected to GATT server. Discovering services..."
+                Log.d("BleManager", msg)
+                diagnosticListener?.onDiagnostic(msg)
                 bluetoothGatt?.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.d("BleManager", "Disconnected from GATT server.")
+                val msg = "Disconnected from GATT server."
+                Log.d("BleManager", msg)
+                diagnosticListener?.onDiagnostic(msg)
                 bluetoothGatt?.close()
                 bluetoothGatt = null
             }
@@ -74,20 +95,19 @@ class BleManager(private val context: Context) {
                 gatt?.services?.forEach { service ->
                     service.characteristics.forEach { characteristic ->
                         if (characteristic.uuid == MUSCLE_STRAIN_CHAR_UUID) {
-                            // Enable notifications if the characteristic supports it.
                             if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
                                 setCharacteristicNotification(gatt, characteristic, true)
                             }
-                            // Optionally perform an initial read.
                             gatt.readCharacteristic(characteristic)
                         }
                     }
                 }
             } else {
-                Log.w("BleManager", "onServicesDiscovered received: $status")
+                val msg = "onServicesDiscovered received: $status"
+                Log.w("BleManager", msg)
+                diagnosticListener?.onDiagnostic(msg)
             }
         }
-
 
         override fun onCharacteristicRead(
             gatt: BluetoothGatt?,
@@ -97,7 +117,9 @@ class BleManager(private val context: Context) {
             if (status == BluetoothGatt.GATT_SUCCESS && characteristic != null) {
                 characteristic.value?.let { data ->
                     receivedData.add(data)
-                    Log.d("BleManager", "Characteristic read: ${data.contentToString()}")
+                    val msg = "Characteristic read: ${data.contentToString()}"
+                    Log.d("BleManager", msg)
+                    diagnosticListener?.onDiagnostic(msg)
                 }
             }
         }
@@ -108,7 +130,9 @@ class BleManager(private val context: Context) {
         ) {
             characteristic?.value?.let { data ->
                 receivedData.add(data)
-                Log.d("BleManager", "Characteristic changed: ${data.contentToString()}")
+                val msg = "Characteristic changed: ${data.contentToString()}"
+                Log.d("BleManager", msg)
+                diagnosticListener?.onDiagnostic(msg)
             }
         }
     }
@@ -129,8 +153,13 @@ class BleManager(private val context: Context) {
             else
                 BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
             gatt.writeDescriptor(descriptor)
+            val msg = "Characteristic ${characteristic.uuid} notifications ${if (enabled) "enabled" else "disabled"}"
+            Log.d("BleManager", msg)
+            diagnosticListener?.onDiagnostic(msg)
         } else {
-            Log.w("BleManager", "Descriptor not found for characteristic ${characteristic.uuid}")
+            val msg = "Descriptor not found for characteristic ${characteristic.uuid}"
+            Log.w("BleManager", msg)
+            diagnosticListener?.onDiagnostic(msg)
         }
     }
 }

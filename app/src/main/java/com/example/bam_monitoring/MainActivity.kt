@@ -19,7 +19,9 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var bleManager: BleManager
+
+    // Lazy initialization ensures bleManager is created on first access.
+    val bleManager: BleManager by lazy { BleManager(this) }
 
     companion object {
         private const val REQUEST_CODE_BLUETOOTH = 1001
@@ -32,7 +34,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Request BLE permissions once during startup (for Android 12+)
+        // Request BLE permissions (for Android 12+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
                 checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
@@ -45,30 +47,23 @@ class MainActivity : AppCompatActivity() {
                     REQUEST_CODE_BLUETOOTH
                 )
             } else {
-                initializeBleManager()
+                // Permissions granted but do not auto-start scanning.
+                Log.d("MainActivity", "BLE permissions granted (scan not auto-started)")
             }
         } else {
-            initializeBleManager()
+            // Pre Android 12; do not auto-start scanning.
+            Log.d("MainActivity", "Pre Android 12 (scan not auto-started)")
         }
 
         val navView: BottomNavigationView = binding.navView
 
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        // Define top-level destinations
+        // Define top-level destinations.
         val appBarConfiguration = AppBarConfiguration(
-            setOf(
-                R.id.navigation_home, R.id.navigation_settings, R.id.navigation_notifications
-            )
+            setOf(R.id.navigation_home, R.id.navigation_settings, R.id.navigation_notifications)
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
-    }
-
-    // Instantiate the BLE manager and start scanning
-    private fun initializeBleManager() {
-        bleManager = BleManager(this)
-        bleManager.startScan()
-        Log.d("MainActivity", "BLE Manager initialized and scan started")
     }
 
     override fun onRequestPermissionsResult(
@@ -77,7 +72,8 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_BLUETOOTH) {
             if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                initializeBleManager()
+                // Permissions granted but still do not auto-start scanning.
+                Log.d("MainActivity", "BLE permissions granted (after request, scan not auto-started)")
             } else {
                 Log.e("MainActivity", "Required BLE permissions not granted.")
             }
