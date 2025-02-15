@@ -33,4 +33,15 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- Diagnostic Message TextView -->
+    <TextView
+        android:id="@+id/textDiagnostic"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text=""
+        android:visibility="gone"
+        tools:layout_editor_absoluteX="189dp"
+        tools:layout_editor_absoluteY="507dp" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

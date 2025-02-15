@@ -18,6 +18,9 @@ class HomeFragment : Fragment() {
     private val PREFS_NAME = "user_profile"
     private val KEY_NAME = "name"
 
+    // Flag to track logo transformation state
+    private var isTransformed = false
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -38,10 +41,44 @@ class HomeFragment : Fragment() {
         val name = sharedPreferences.getString(KEY_NAME, null)
 
         // Update the greeting TextView based on whether a name is available
-        if (!name.isNullOrEmpty()) {
-            binding.textHello.text = "Hello, $name!"
-        } else {
-            binding.textHello.text = "Hello!"
+        binding.textHello.text = if (!name.isNullOrEmpty()) "Hello, $name!" else "Hello!"
+
+        // Set click listener on the logo image to trigger animations
+        binding.logoImage.setOnClickListener {
+            if (!isTransformed) {
+                // Animate the logo: shrink and move upward
+                binding.logoImage.animate()
+                    .scaleX(0.4f)
+                    .scaleY(0.4f)
+                    // Moves the logo upward by its current top offset plus an extra 20 pixels (adjust as needed)
+                    .translationY(-binding.logoImage.top.toFloat() - 20)
+                    .setDuration(500)
+                    .start()
+
+                // Animate the greeting text to fade out quickly
+                binding.textHello.animate()
+                    .alpha(0f)
+                    .setDuration(300)
+                    .start()
+
+                isTransformed = true
+            } else {
+                // Reverse the animation: restore original size and position
+                binding.logoImage.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .translationY(0f)
+                    .setDuration(500)
+                    .start()
+
+                // Fade the greeting text back in
+                binding.textHello.animate()
+                    .alpha(1f)
+                    .setDuration(300)
+                    .start()
+
+                isTransformed = false
+            }
         }
     }
 
@@ -51,3 +88,4 @@ class HomeFragment : Fragment() {
         _binding = null
     }
 }
+
