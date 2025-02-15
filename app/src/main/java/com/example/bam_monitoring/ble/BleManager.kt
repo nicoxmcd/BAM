@@ -12,6 +12,7 @@ class BleManager(private val context: Context) {
         context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
     private var bluetoothGatt: BluetoothGatt? = null
+    private val MUSCLE_STRAIN_CHAR_UUID: UUID = UUID.fromString("00002A58-0000-1000-8000-00805f9b34fb")
 
     // In-memory store for received BLE data
     val receivedData = mutableListOf<ByteArray>()
@@ -70,18 +71,21 @@ class BleManager(private val context: Context) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 gatt?.services?.forEach { service ->
                     service.characteristics.forEach { characteristic ->
-                        // Enable notifications if supported
-                        if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
-                            setCharacteristicNotification(gatt, characteristic, true)
+                        if (characteristic.uuid == MUSCLE_STRAIN_CHAR_UUID) {
+                            // Enable notifications if the characteristic supports it.
+                            if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+                                setCharacteristicNotification(gatt, characteristic, true)
+                            }
+                            // Optionally perform an initial read.
+                            gatt.readCharacteristic(characteristic)
                         }
-                        // Also perform an initial read of the characteristic
-                        gatt.readCharacteristic(characteristic)
                     }
                 }
             } else {
                 Log.w("BleManager", "onServicesDiscovered received: $status")
             }
         }
+
 
         override fun onCharacteristicRead(
             gatt: BluetoothGatt?,
