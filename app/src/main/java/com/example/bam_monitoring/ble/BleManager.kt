@@ -1,13 +1,11 @@
 package com.example.bam_monitoring.ble
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
-import android.bluetooth.le.*
+import android.bluetooth.*
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
+import java.util.UUID
 
 @SuppressLint("MissingPermission")
 class BleManager(private val context: Context) {
@@ -17,69 +15,131 @@ class BleManager(private val context: Context) {
     }
     var diagnosticListener: DiagnosticListener? = null
 
-    private val TAG = "BleManager"
-    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    private val bluetoothManager: BluetoothManager =
+        context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
-    private val bluetoothLeScanner: BluetoothLeScanner? = bluetoothAdapter?.bluetoothLeScanner
-    private val handler = Handler(Looper.getMainLooper())
-    private var scanning = false
-    private val SCAN_PERIOD: Long = 300  // You can adjust this duration if desired
+    private var bluetoothGatt: BluetoothGatt? = null
 
-    // A set to store discovered devices.
-    private val discoveredDevices = mutableSetOf<String>()
+    // This UUID matches the sensor's EMG characteristic ("2A58")
+    private val MUSCLE_STRAIN_CHAR_UUID: UUID =
+        UUID.fromString("00002A58-0000-1000-8000-00805f9b34fb")
 
-    // Scan callback adapted from your original working code.
-    private val leScanCallback: ScanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult?) {
-            result?.device?.let { device ->
-                val deviceInfo = "${device.name ?: "Unknown"} - ${device.address}"
-                if (discoveredDevices.add(deviceInfo)) {
-                    diagnosticListener?.onDiagnostic("Found device: $deviceInfo")
-                    Log.d(TAG, "Found device: $deviceInfo")
-                }
-            }
-        }
-        override fun onBatchScanResults(results: MutableList<ScanResult>?) {
-            results?.forEach { result ->
-                onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, result)
-            }
-        }
-        override fun onScanFailed(errorCode: Int) {
-            val errorMsg = "BLE scan failed with error: $errorCode"
-            diagnosticListener?.onDiagnostic(errorMsg)
-            Log.e(TAG, errorMsg)
-        }
-    }
+    // Store received BLE data for further processing if needed.
+    val receivedData = mutableListOf<ByteArray>()
 
     fun startScan() {
-        if (bluetoothAdapter == null || bluetoothLeScanner == null) {
-            diagnosticListener?.onDiagnostic("Bluetooth adapter or scanner is null!")
-            Log.e(TAG, "Bluetooth adapter or scanner is null!")
-            return
-        }
-        if (scanning) return
-        scanning = true
-        discoveredDevices.clear()
-        diagnosticListener?.onDiagnostic("Starting BLE scan...")
-        bluetoothLeScanner.startScan(leScanCallback)
-        handler.postDelayed({
-            stopScan()
-            if (discoveredDevices.isEmpty()) {
-                diagnosticListener?.onDiagnostic("No devices found")
-            } else {
-                diagnosticListener?.onDiagnostic("Scan complete. Devices found:")
-                discoveredDevices.forEach { device ->
-                    diagnosticListener?.onDiagnostic(device)
-                }
-            }
-        }, SCAN_PERIOD)
+        bluetoothAdapter?.bluetoothLeScanner?.startScan(scanCallback)
+        diagnosticListener?.onDiagnostic("BLE scan started")
     }
 
     fun stopScan() {
-        if (!scanning) return
-        scanning = false
-        bluetoothLeScanner?.stopScan(leScanCallback)
+        bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
         diagnosticListener?.onDiagnostic("BLE scan stopped")
-        Log.d(TAG, "Stopped scan")
+    }
+
+    private val scanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult?) {
+            result?.device?.let { device ->
+                //diagnosticListener?.onDiagnostic("Found device: ${device.name ?: "Unknown"} - ${device.address}")
+                if (bluetoothGatt == null) {
+                    connectToDevice(device)
+                }
+            }
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            diagnosticListener?.onDiagnostic("BLE scan failed with error code: $errorCode")
+        }
+    }
+
+    private fun connectToDevice(device: BluetoothDevice) {
+        diagnosticListener?.onDiagnostic("Connecting to device: ${device.address}")
+        bluetoothGatt = device.connectGatt(context, false, gattCallback)
+    }
+
+    private val gattCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                diagnosticListener?.onDiagnostic("Connected. Discovering services...")
+                bluetoothGatt?.discoverServices()
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                diagnosticListener?.onDiagnostic("Disconnected from GATT server.")
+                bluetoothGatt?.close()
+                bluetoothGatt = null
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                gatt?.services?.forEach { service ->
+                    service.characteristics.forEach { characteristic ->
+                        if (characteristic.uuid == MUSCLE_STRAIN_CHAR_UUID) {
+                            if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+                                setCharacteristicNotification(gatt, characteristic, true)
+                            }
+                        }
+                    }
+                }
+            } else {
+                diagnosticListener?.onDiagnostic("Service discovery failed with status: $status")
+            }
+        }
+
+        override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
+            if (characteristic?.uuid == MUSCLE_STRAIN_CHAR_UUID) {
+                characteristic.value?.let { data ->
+                    receivedData.add(data)
+                    val rawMessage = String(data, Charsets.UTF_8).trim()
+                    val parsed = parseClassificationData(rawMessage)
+                    diagnosticListener?.onDiagnostic("Muscle strain data: $parsed")
+                }
+            }
+        }
+    }
+
+    private fun setCharacteristicNotification(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        enabled: Boolean
+    ) {
+        gatt.setCharacteristicNotification(characteristic, enabled)
+        val descriptor = characteristic.getDescriptor(
+            UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        )
+        if (descriptor != null) {
+            descriptor.value = if (enabled)
+                BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            else
+                BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+            gatt.writeDescriptor(descriptor)
+            diagnosticListener?.onDiagnostic("Subscribed to notifications for characteristic ${characteristic.uuid}")
+        } else {
+            diagnosticListener?.onDiagnostic("Descriptor not found for ${characteristic.uuid}")
+        }
+    }
+
+    /**
+     * Parses a classification string expected in the format:
+     * "label1:XX% label2:YY% ..." and returns a formatted summary.
+     */
+    private fun parseClassificationData(rawMessage: String): String {
+        // Split by whitespace; each token should be "label:XX%"
+        val tokens = rawMessage.split(Regex("\\s+"))
+        val parsedResults = tokens.mapNotNull { token ->
+            val parts = token.split(":")
+            if (parts.size == 2) {
+                val label = parts[0]
+                // Remove any trailing '%' and try to parse the number.
+                val percentStr = parts[1].removeSuffix("%")
+                val percent = percentStr.toIntOrNull()
+                if (percent != null) {
+                    "$label: ${percent}%"
+                } else null
+            } else null
+        }
+        return if (parsedResults.isNotEmpty())
+            parsedResults.joinToString(separator = ", ")
+        else
+            rawMessage
     }
 }
