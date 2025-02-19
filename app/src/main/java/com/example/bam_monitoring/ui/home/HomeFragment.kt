@@ -32,9 +32,7 @@ class HomeFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        // Set initial alpha values: greeting visible, diagnostics hidden.
+        // Set initial alphas: greeting visible, diagnostics hidden.
         binding.textHello.alpha = 1f
         binding.textDiagnostic.alpha = 0f
 
@@ -43,10 +41,9 @@ class HomeFragment : Fragment() {
         val name = sharedPreferences.getString(KEY_NAME, null)
         binding.textHello.text = if (!name.isNullOrEmpty()) "Hello, $name!" else "Hello!"
 
-        // Set click listener on the logo to toggle animation and BLE scanning.
+        // Toggle animation and BLE scan on logo click.
         binding.logoImage.setOnClickListener {
             if (!isTransformed) {
-                // Animate logo: shrink and move upward.
                 binding.logoImage.animate()
                     .scaleX(0.4f)
                     .scaleY(0.4f)
@@ -56,20 +53,11 @@ class HomeFragment : Fragment() {
                         (activity as? MainActivity)?.bleManager?.startScan()
                     }
                     .start()
-
-                // Animate texts: fade out greeting, fade in diagnostics.
-                binding.textHello.animate()
-                    .alpha(0f)
-                    .setDuration(300)
-                    .start()
-                binding.textDiagnostic.animate()
-                    .alpha(1f)
-                    .setDuration(300)
-                    .start()
-
+                binding.textHello.animate().alpha(0f).setDuration(300).start()
+                binding.textDiagnostic.text = ""
+                binding.textDiagnostic.animate().alpha(1f).setDuration(300).start()
                 isTransformed = true
             } else {
-                // Animate logo: revert scale and translation.
                 binding.logoImage.animate()
                     .scaleX(1f)
                     .scaleY(1f)
@@ -79,26 +67,16 @@ class HomeFragment : Fragment() {
                         (activity as? MainActivity)?.bleManager?.stopScan()
                     }
                     .start()
-
-                // Animate texts: fade in greeting, fade out diagnostics.
-                binding.textHello.animate()
-                    .alpha(1f)
-                    .setDuration(300)
-                    .start()
-                binding.textDiagnostic.animate()
-                    .alpha(0f)
-                    .setDuration(300)
-                    .start()
-
+                binding.textHello.animate().alpha(1f).setDuration(300).start()
+                binding.textDiagnostic.animate().alpha(0f).setDuration(300).start()
                 isTransformed = false
             }
         }
 
-        // Register a diagnostic listener to update the diagnostics text box with a rolling log.
+        // Set the diagnostic listener with a rolling log.
         (activity as? MainActivity)?.bleManager?.diagnosticListener = object : BleManager.DiagnosticListener {
             override fun onDiagnostic(message: String) {
                 requireActivity().runOnUiThread {
-                    // Maintain a maximum of 8 lines.
                     if (diagnosticLines.size >= 8) {
                         diagnosticLines.removeFirst()
                     }
@@ -110,8 +88,8 @@ class HomeFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        super.onDestroyView()
         (activity as? MainActivity)?.bleManager?.diagnosticListener = null
         _binding = null
+        super.onDestroyView()
     }
 }
