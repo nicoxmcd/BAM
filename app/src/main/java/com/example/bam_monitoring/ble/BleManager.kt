@@ -24,6 +24,9 @@ class BleManager(private val context: Context) {
     private val MUSCLE_STRAIN_CHAR_UUID: UUID =
         UUID.fromString("00002A58-0000-1000-8000-00805f9b34fb")
 
+    // Specific MAC address to connect to.
+    private val deviceMac = "CA:84:B5:D4:DF:2F"
+
     // Store received BLE data for further processing if needed.
     val receivedData = mutableListOf<ByteArray>()
 
@@ -40,9 +43,12 @@ class BleManager(private val context: Context) {
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.device?.let { device ->
-                //diagnosticListener?.onDiagnostic("Found device: ${device.name ?: "Unknown"} - ${device.address}")
-                if (bluetoothGatt == null) {
-                    connectToDevice(device)
+                // Only connect if the device MAC matches our target.
+                if (device.address.equals(deviceMac, ignoreCase = true)) {
+                    diagnosticListener?.onDiagnostic("Found target device: ${device.name ?: "Unknown"} - ${device.address}")
+                    if (bluetoothGatt == null) {
+                        connectToDevice(device)
+                    }
                 }
             }
         }
