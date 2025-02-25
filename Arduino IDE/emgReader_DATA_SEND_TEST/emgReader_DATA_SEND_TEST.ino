@@ -1,19 +1,38 @@
-#include <Adafruit_TinyUSB.h>
+#include <bluefruit.h>
+
+// Create a BLE UART service instance
+BLEUart bleuart;
 
 void setup() {
+  // Initialize Serial for debugging & plotting
   Serial.begin(115200);
-  // Wait for the Serial Monitor to connect (if needed)
-  while (!Serial) { delay(10); }
-  Serial.println("Live Muscle Data Output from MyoWare 2.0");
+  while (!Serial);
+  Serial.println("BLE Serial test running...");
+
+  // Initialize Bluefruit with default settings
+  Bluefruit.begin();
+  Bluefruit.setName("MyoWare BLE");
+  
+  // Initialize the BLE UART service
+  bleuart.begin();
+  
+  // Add the UART service to advertising packet and start advertising
+  Bluefruit.Advertising.addService(bleuart);
+  Bluefruit.Advertising.start();
+
+  Serial.println("BLE Initialized and Advertising");
 }
 
 void loop() {
-  // Read the muscle signal from the MyoWare sensor (analog pin A0)
-  int muscleSignal = analogRead(A0);
-  
-  // Print the raw sensor value to the Serial Monitor
-  Serial.println(muscleSignal);
+  // Read raw data from the MyoWare sensor on analog pin A0
+  int sensorValue = analogRead(A0);
 
-  // Short delay to control the update rate (adjust as needed)
-  delay(100);
+  // Print the sensor value to the Serial Plotter
+  Serial.println(sensorValue);
+
+  // Send the sensor value over BLE UART (newline for each sample)
+  bleuart.print(sensorValue);
+  bleuart.print("\n");
+
+  delay(100);  // Adjust the delay as needed for your sampling rate
 }
