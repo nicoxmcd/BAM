@@ -12,5 +12,5 @@ void setup() {
 
 void loop() {
     Serial.println(analogRead(A0));  // Print raw MyoWare sensor value
-    delay(500);
+    delay(100);
 }
