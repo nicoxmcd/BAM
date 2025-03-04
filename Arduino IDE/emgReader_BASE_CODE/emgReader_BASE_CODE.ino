@@ -1,16 +1,14 @@
-#include <Adafruit_TinyUSB.h>
-
-#include <Adafruit_TinyUSB.h>
-
 #include <bluefruit.h>
 
+#include <Adafruit_TinyUSB.h>
+
+
 void setup() {
-    Serial.begin(115200);
-    while (!Serial);
-    Serial.println("Serial test running...");
+    Serial.begin(9600); // Initialize serial communication at 9600 baud
 }
 
 void loop() {
-    Serial.println(analogRead(A0));  // Print raw MyoWare sensor value
-    delay(100);
+    int muscleSignal = analogRead(A0); // Read from analog pin A0
+    Serial.println(muscleSignal); // Print value to Serial Monitor
+    delay(100); // Small delay for readability
 }
