@@ -58,6 +58,16 @@
             android:layout_marginStart="32dp"
             android:paddingVertical="8dp" />
 
+        <!-- Debug Mode Toggle (Initially Hidden) -->
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/debug_toggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Debug Mode"
+            android:visibility="gone"
+            android:layout_marginStart="32dp"
+            android:paddingVertical="8dp" />
+
         <!-- Export Data Option -->
         <TextView
             android:id="@+id/option_export_data"

@@ -1,3 +1,4 @@
+// Kotlin: HomeFragment.kt
 package com.example.bam_monitoring.ui.home
 
 import android.content.Context
@@ -16,11 +17,11 @@ class HomeFragment : Fragment() {
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
 
-    private val PREFS_NAME = "user_profile"
+    private val PROFILE_PREFS_NAME = "user_profile"
     private val KEY_NAME = "name"
-    private var isTransformed = false
+    private val SETTINGS_PREFS_NAME = "settings"
+    private val DEBUG_MODE_KEY = "debug_mode"
 
-    // Use an ArrayDeque to hold up to 8 diagnostic lines.
     private val diagnosticLines = ArrayDeque<String>()
 
     override fun onCreateView(
@@ -32,18 +33,32 @@ class HomeFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        // Set initial alphas: greeting visible, diagnostics hidden.
         binding.textHello.alpha = 1f
         binding.textDiagnostic.alpha = 0f
 
-        // Update greeting text based on SharedPreferences.
-        val sharedPreferences = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val name = sharedPreferences.getString(KEY_NAME, null)
+        // Update greeting text.
+        val profilePrefs = requireContext().getSharedPreferences(PROFILE_PREFS_NAME, Context.MODE_PRIVATE)
+        val name = profilePrefs.getString(KEY_NAME, null)
         binding.textHello.text = if (!name.isNullOrEmpty()) "Hello, $name!" else "Hello!"
 
-        // Toggle animation and BLE scan on logo click.
+        // Retrieve debug mode setting.
+        val settingsPrefs = requireContext().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+        val isDebugMode = settingsPrefs.getBoolean(DEBUG_MODE_KEY, false)
+        if (isDebugMode) {
+            binding.textDiagnostic.visibility = View.VISIBLE
+            binding.progressBar.visibility = View.GONE
+        } else {
+            binding.textDiagnostic.visibility = View.GONE
+            binding.progressBar.visibility = View.VISIBLE
+            binding.progressBar.progress = 0
+        }
+
+        // Use a flag to track scanning state.
+        var isScanning = false
+
         binding.logoImage.setOnClickListener {
-            if (!isTransformed) {
+            if (!isScanning) {
+                isScanning = true
                 binding.logoImage.animate()
                     .scaleX(0.4f)
                     .scaleY(0.4f)
@@ -54,10 +69,14 @@ class HomeFragment : Fragment() {
                     }
                     .start()
                 binding.textHello.animate().alpha(0f).setDuration(300).start()
-                binding.textDiagnostic.text = ""
-                binding.textDiagnostic.animate().alpha(1f).setDuration(300).start()
-                isTransformed = true
+                if (isDebugMode) {
+                    binding.textDiagnostic.text = ""
+                    binding.textDiagnostic.animate().alpha(1f).setDuration(300).start()
+                } else {
+                    binding.progressBar.progress = 0
+                }
             } else {
+                isScanning = false
                 binding.logoImage.animate()
                     .scaleX(1f)
                     .scaleY(1f)
@@ -68,23 +87,33 @@ class HomeFragment : Fragment() {
                     }
                     .start()
                 binding.textHello.animate().alpha(1f).setDuration(300).start()
-                binding.textDiagnostic.animate().alpha(0f).setDuration(300).start()
-                isTransformed = false
-            }
-        }
-
-        // Set the diagnostic listener with a rolling log.
-        (activity as? MainActivity)?.bleManager?.diagnosticListener = object : BleManager.DiagnosticListener {
-            override fun onDiagnostic(message: String) {
-                requireActivity().runOnUiThread {
-                    if (diagnosticLines.size >= 8) {
-                        diagnosticLines.removeFirst()
-                    }
-                    diagnosticLines.addLast(message)
-                    binding.textDiagnostic.text = diagnosticLines.joinToString(separator = "\n")
+                if (isDebugMode) {
+                    binding.textDiagnostic.animate().alpha(0f).setDuration(300).start()
                 }
             }
         }
+
+        // Set the diagnostic listener.
+        (activity as? MainActivity)?.bleManager?.diagnosticListener =
+            object : BleManager.DiagnosticListener {
+                override fun onDiagnostic(message: String) {
+                    requireActivity().runOnUiThread {
+                        val settingsPrefs = requireContext().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+                        val isDebugMode = settingsPrefs.getBoolean(DEBUG_MODE_KEY, false)
+                        if (isDebugMode) {
+                            if (diagnosticLines.size >= 8) {
+                                diagnosticLines.removeFirst()
+                            }
+                            diagnosticLines.addLast(message)
+                            binding.textDiagnostic.text = diagnosticLines.joinToString(separator = "\n")
+                        } else {
+                            message.toIntOrNull()?.let { percentage ->
+                                binding.progressBar.progress = percentage.coerceIn(0, 100)
+                            }
+                        }
+                    }
+                }
+            }
     }
 
     override fun onDestroyView() {

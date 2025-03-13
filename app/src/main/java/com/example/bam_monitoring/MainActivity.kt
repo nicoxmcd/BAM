@@ -7,6 +7,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.navigation.findNavController
+import androidx.navigation.ui.setupWithNavController
 import com.example.bam_monitoring.databinding.ActivityMainBinding
 import com.example.bam_monitoring.ble.BleManager
 
@@ -36,6 +38,10 @@ class MainActivity : AppCompatActivity() {
                 PERMISSION_REQUEST_CODE
             )
         }
+
+        // Set up the bottom navigation view to work with the NavController.
+        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        binding.navView.setupWithNavController(navController)
     }
 
     private fun hasPermissions(): Boolean {
