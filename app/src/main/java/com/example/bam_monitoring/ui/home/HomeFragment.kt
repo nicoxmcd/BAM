@@ -1,4 +1,3 @@
-// Kotlin: HomeFragment.kt
 package com.example.bam_monitoring.ui.home
 
 import android.content.Context
@@ -49,8 +48,7 @@ class HomeFragment : Fragment() {
             binding.progressBar.visibility = View.GONE
         } else {
             binding.textDiagnostic.visibility = View.GONE
-            binding.progressBar.visibility = View.VISIBLE
-            binding.progressBar.progress = 0
+            binding.progressBar.visibility = View.GONE // Initially hidden
         }
 
         // Use a flag to track scanning state.
@@ -73,6 +71,9 @@ class HomeFragment : Fragment() {
                     binding.textDiagnostic.text = ""
                     binding.textDiagnostic.animate().alpha(1f).setDuration(300).start()
                 } else {
+                    binding.progressBar.alpha = 0f
+                    binding.progressBar.visibility = View.VISIBLE // Show progress bar
+                    binding.progressBar.animate().alpha(1f).setDuration(300).start()
                     binding.progressBar.progress = 0
                 }
             } else {
@@ -89,6 +90,10 @@ class HomeFragment : Fragment() {
                 binding.textHello.animate().alpha(1f).setDuration(300).start()
                 if (isDebugMode) {
                     binding.textDiagnostic.animate().alpha(0f).setDuration(300).start()
+                } else {
+                    binding.progressBar.animate().alpha(0f).setDuration(300).withEndAction {
+                        binding.progressBar.visibility = View.GONE // Hide progress bar after fade
+                    }.start()
                 }
             }
         }
