@@ -37,11 +37,17 @@
         android:label="Profile"
         tools:layout="@layout/fragment_profile" />
 
-    <!-- Notifications Fragment (if applicable) -->
+    <!-- Notifications Fragment -->
     <fragment
         android:id="@+id/navigation_notifications"
         android:name="com.example.bam_monitoring.ui.notifications.NotificationsFragment"
         android:label="@string/title_notifications"
         tools:layout="@layout/fragment_notifications" />
+
+    <!-- Recommendations Fragment -->
+    <fragment
+        android:id="@+id/navigation_recommendations"
+        android:name="com.example.bam_monitoring.ui.recommendations.RecommendationsFragment"
+        android:label="Recommendations" />
 
 </navigation>
