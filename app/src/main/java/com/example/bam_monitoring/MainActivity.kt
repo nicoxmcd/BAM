@@ -2,8 +2,10 @@ package com.example.bam_monitoring
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -21,6 +23,7 @@ class MainActivity : AppCompatActivity() {
         private const val PERMISSION_REQUEST_CODE = 1
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -33,7 +36,8 @@ class MainActivity : AppCompatActivity() {
                 arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.BLUETOOTH_SCAN,
-                    Manifest.permission.BLUETOOTH_CONNECT
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.INTERNET
                 ),
                 PERMISSION_REQUEST_CODE
             )
@@ -44,6 +48,7 @@ class MainActivity : AppCompatActivity() {
         binding.navView.setupWithNavController(navController)
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     private fun hasPermissions(): Boolean {
         return (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
