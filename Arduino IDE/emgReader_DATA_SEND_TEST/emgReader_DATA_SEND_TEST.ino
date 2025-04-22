@@ -2,7 +2,7 @@
 #include <Adafruit_TinyUSB.h>
 
 // Pin where your MyoWare SIG output is connected
-#define EMG_PIN A0
+#define EMG_PIN A1
 
 // Desired sampling rate for training (in Hz)
 #define SAMPLE_RATE_HZ 100
