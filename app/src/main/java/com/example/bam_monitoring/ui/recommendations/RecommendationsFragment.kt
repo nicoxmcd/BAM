@@ -149,7 +149,6 @@ class RecommendationsFragment : Fragment() {
                 if (cd.has("regionRestriction")) {
                     val rr = cd.getJSONObject("regionRestriction")
                     if (rr.has("blocked")) continue
-                    if (rr.has("allowed")) continue
                 }
 
                 goodOnes += item.getString("id")
