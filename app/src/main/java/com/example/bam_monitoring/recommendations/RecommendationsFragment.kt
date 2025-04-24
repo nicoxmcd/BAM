@@ -61,7 +61,7 @@ class RecommendationsFragment : Fragment() {
     private fun searchVideos(query: String, gridInfo: VideoGridInfo) {
         Thread {
             try {
-                // 1) initial search, only embeddable & syndicated
+                // Initial search, only embeddable & syndicated
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
                 val maxResults = gridInfo.numColumns * gridInfo.numRows
                 val searchUrl = "https://www.googleapis.com/youtube/v3/search" +
@@ -78,7 +78,7 @@ class RecommendationsFragment : Fragment() {
                 val searchResp = searchConn.inputStream.bufferedReader().use { it.readText() }
                 val rawIds = parseVideoIds(searchResp)
 
-                // 2) filter out any that are private / unprocessed / non-embeddable / region-restricted
+                // Filter out any that are private / unprocessed / non-embeddable / region-restricted
                 val availableIds = filterAvailableVideos(rawIds)
 
                 activity?.runOnUiThread {
