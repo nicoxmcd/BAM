@@ -1,4 +1,4 @@
-package com.example.bam_monitoring.recommendations
+package com.example.bam_monitoring.ui.recommendations
 
 import android.os.Bundle
 import android.util.DisplayMetrics
@@ -10,7 +10,6 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.bam_monitoring.R
-import com.example.bam_monitoring.ui.VideoAdapter
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL

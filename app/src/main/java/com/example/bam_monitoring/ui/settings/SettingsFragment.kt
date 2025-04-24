@@ -1,15 +1,11 @@
-// Kotlin: SettingsFragment.kt
 package com.example.bam_monitoring.ui.settings
 
-import android.animation.Animator
-import android.animation.AnimatorListenerAdapter
-import android.animation.ValueAnimator
-import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
@@ -43,14 +39,13 @@ class SettingsFragment : Fragment() {
             isAppearanceExpanded = savedInstanceState.getBoolean(APPEARANCE_EXPANDED_KEY, false)
         }
 
-        val sharedPreferences = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val sharedPreferences = requireContext().getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val isDarkMode = sharedPreferences.getBoolean(DARK_MODE_KEY, false)
         val isDebugMode = sharedPreferences.getBoolean(DEBUG_MODE_KEY, false)
 
         binding.themeToggle.isChecked = isDarkMode
         binding.debugToggle.isChecked = isDebugMode
 
-        // Set initial visibility based on whether the appearance options are expanded.
         if (isAppearanceExpanded) {
             binding.themeToggle.visibility = View.VISIBLE
             binding.debugToggle.visibility = View.VISIBLE
@@ -59,7 +54,6 @@ class SettingsFragment : Fragment() {
             binding.debugToggle.visibility = View.GONE
         }
 
-        // Toggle expansion for both dark mode and debug toggles.
         binding.optionAppearance.setOnClickListener {
             isAppearanceExpanded = !isAppearanceExpanded
             if (isAppearanceExpanded) {
@@ -71,7 +65,6 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        // Dark mode toggle listener.
         binding.themeToggle.setOnCheckedChangeListener { _, isChecked ->
             sharedPreferences.edit().putBoolean(DARK_MODE_KEY, isChecked).apply()
             val nightMode = if (isChecked) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
@@ -79,10 +72,8 @@ class SettingsFragment : Fragment() {
             activity?.recreate()
         }
 
-        // Debug mode toggle listener.
         binding.debugToggle.setOnCheckedChangeListener { _, isChecked ->
             sharedPreferences.edit().putBoolean(DEBUG_MODE_KEY, isChecked).apply()
-            // HomeFragment can check this flag to show/hide connection info.
         }
 
         binding.optionProfile.setOnClickListener {
@@ -93,7 +84,10 @@ class SettingsFragment : Fragment() {
         binding.optionTest.setOnClickListener { }
         binding.optionTutorial.setOnClickListener { }
         binding.optionHelp.setOnClickListener { }
-        binding.optionAboutUs.setOnClickListener { }
+        binding.optionAboutUs.setOnClickListener {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://bam-monitoring.my.canva.site/#our-team"))
+            startActivity(intent)
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -115,29 +109,29 @@ class SettingsFragment : Fragment() {
         view.layoutParams.height = 0
         view.visibility = View.VISIBLE
 
-        val anim = ValueAnimator.ofInt(0, targetHeight)
+        val anim = android.animation.ValueAnimator.ofInt(0, targetHeight)
         anim.addUpdateListener { valueAnimator ->
             val layoutParams = view.layoutParams
             layoutParams.height = valueAnimator.animatedValue as Int
             view.layoutParams = layoutParams
         }
         anim.duration = 200
-        anim.interpolator = AccelerateDecelerateInterpolator()
+        anim.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
         anim.start()
     }
 
     private fun collapse(view: View) {
         val initialHeight = view.measuredHeight
-        val anim = ValueAnimator.ofInt(initialHeight, 0)
+        val anim = android.animation.ValueAnimator.ofInt(initialHeight, 0)
         anim.addUpdateListener { valueAnimator ->
             val layoutParams = view.layoutParams
             layoutParams.height = valueAnimator.animatedValue as Int
             view.layoutParams = layoutParams
         }
         anim.duration = 200
-        anim.interpolator = AccelerateDecelerateInterpolator()
-        anim.addListener(object : AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: Animator) {
+        anim.interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+        anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
                 view.visibility = View.GONE
             }
         })

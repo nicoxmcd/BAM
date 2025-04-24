@@ -47,7 +47,7 @@
     <!-- Recommendations Fragment -->
     <fragment
         android:id="@+id/navigation_recommendations"
-        android:name="com.example.bam_monitoring.recommendations.RecommendationsFragment"
+        android:name="com.example.bam_monitoring.ui.recommendations.RecommendationsFragment"
         android:label="Recommendations" />
 
 </navigation>

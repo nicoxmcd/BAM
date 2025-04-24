@@ -1,4 +1,4 @@
-package com.example.bam_monitoring.ui
+package com.example.bam_monitoring.ui.recommendations
 
 import android.content.Context
 import android.view.LayoutInflater
@@ -8,7 +8,6 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.recyclerview.widget.RecyclerView
 import com.example.bam_monitoring.R
-import com.example.bam_monitoring.recommendations.RecommendationsFragment
 
 class VideoAdapter(
     private val context: Context,
