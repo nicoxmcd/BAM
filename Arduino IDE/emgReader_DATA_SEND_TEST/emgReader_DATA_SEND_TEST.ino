@@ -1,38 +1,34 @@
 #include <bluefruit.h>
+#include <Adafruit_TinyUSB.h>
 
-// Create a BLE UART service instance
-BLEUart bleuart;
+// Pin where your MyoWare SIG output is connected
+#define EMG_PIN A1      
+
+// Desired sampling rate for training (in Hz)
+#define SAMPLE_RATE_HZ 100
 
 void setup() {
-  // Initialize Serial for debugging & plotting
+  // Initialize serial for Edge Impulse data forwarder
   Serial.begin(115200);
   while (!Serial);
-  Serial.println("BLE Serial test running...");
 
-  // Initialize Bluefruit with default settings
-  Bluefruit.begin();
-  Bluefruit.setName("MyoWare BLE");
-  
-  // Initialize the BLE UART service
-  bleuart.begin();
-  
-  // Add the UART service to advertising packet and start advertising
-  Bluefruit.Advertising.addService(bleuart);
-  Bluefruit.Advertising.start();
-
-  Serial.println("BLE Initialized and Advertising");
+  // Print the magic string so the data forwarder recognizes this port
+  Serial.println("Edge Impulse Data Forwarder");
 }
 
 void loop() {
-  // Read raw data from the MyoWare sensor on analog pin A0
-  int sensorValue = analogRead(A0);
+  static uint32_t nextMicros = micros();
+  const uint32_t interval = 1000000UL / SAMPLE_RATE_HZ;
 
-  // Print the sensor value to the Serial Plotter
-  Serial.println(sensorValue);
+  if (micros() >= nextMicros) {
+    // Read raw EMG from MyoWare
+    int rawValue = analogRead(EMG_PIN);
 
-  // Send the sensor value over BLE UART (newline for each sample)
-  bleuart.print(sensorValue);
-  bleuart.print("\n");
+    // Send in “label,value” format; Edge Impulse will pick up “muscle” channel
+    Serial.print("muscle,");
+    Serial.println(rawValue);
 
-  delay(100);  // Adjust the delay as needed for your sampling rate
+    // Schedule next sample
+    nextMicros += interval;
+  }
 }
