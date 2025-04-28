@@ -1,4 +1,4 @@
-#include <BAM_Monitoring_Training__inferencing.h>
+#include <BAM_Monitoring_AI_inferencing.h>
 #include <bluefruit.h>
 
 #define INPUT_FEATURES     EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE
