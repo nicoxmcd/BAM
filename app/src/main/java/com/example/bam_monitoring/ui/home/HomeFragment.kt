@@ -24,7 +24,8 @@ class HomeFragment : Fragment() {
     private val diagnosticLines = ArrayDeque<String>()
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
+        inflater: LayoutInflater,
+        container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
@@ -40,23 +41,27 @@ class HomeFragment : Fragment() {
         val name = profilePrefs.getString(KEY_NAME, null)
         binding.textHello.text = if (!name.isNullOrEmpty()) "Hello, $name!" else "Hello!"
 
-        // Retrieve debug mode setting.
         val settingsPrefs = requireContext().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
         val isDebugMode = settingsPrefs.getBoolean(DEBUG_MODE_KEY, false)
         if (isDebugMode) {
             binding.textDiagnostic.visibility = View.VISIBLE
-            binding.progressBar.visibility = View.GONE
+            binding.progressBarRelaxed.visibility = View.GONE
+            binding.progressBarFlexed.visibility = View.GONE
+            binding.progressBarStrained.visibility = View.GONE
         } else {
             binding.textDiagnostic.visibility = View.GONE
-            binding.progressBar.visibility = View.GONE // Initially hidden
+            // Ensure progress bars are initially hidden.
+            binding.progressBarRelaxed.visibility = View.GONE
+            binding.progressBarFlexed.visibility = View.GONE
+            binding.progressBarStrained.visibility = View.GONE
         }
 
-        // Use a flag to track scanning state.
         var isScanning = false
 
         binding.logoImage.setOnClickListener {
             if (!isScanning) {
                 isScanning = true
+                // Animate logo and start scanning.
                 binding.logoImage.animate()
                     .scaleX(0.4f)
                     .scaleY(0.4f)
@@ -67,17 +72,21 @@ class HomeFragment : Fragment() {
                     }
                     .start()
                 binding.textHello.animate().alpha(0f).setDuration(300).start()
-                if (isDebugMode) {
+                if (!isDebugMode) {
+                    // Reset, make visible and animate each progress bar.
+                    listOf(binding.progressBarRelaxed, binding.progressBarFlexed, binding.progressBarStrained).forEach { bar ->
+                        bar.progress = 0
+                        bar.alpha = 0f
+                        bar.visibility = View.VISIBLE
+                        bar.animate().alpha(1f).setDuration(300).start()
+                    }
+                } else {
                     binding.textDiagnostic.text = ""
                     binding.textDiagnostic.animate().alpha(1f).setDuration(300).start()
-                } else {
-                    binding.progressBar.alpha = 0f
-                    binding.progressBar.visibility = View.VISIBLE // Show progress bar
-                    binding.progressBar.animate().alpha(1f).setDuration(300).start()
-                    binding.progressBar.progress = 0
                 }
             } else {
                 isScanning = false
+                // Animate logo back and stop scanning.
                 binding.logoImage.animate()
                     .scaleX(1f)
                     .scaleY(1f)
@@ -88,17 +97,19 @@ class HomeFragment : Fragment() {
                     }
                     .start()
                 binding.textHello.animate().alpha(1f).setDuration(300).start()
-                if (isDebugMode) {
-                    binding.textDiagnostic.animate().alpha(0f).setDuration(300).start()
+                if (!isDebugMode) {
+                    // Fade out each progress bar and set to GONE
+                    listOf(binding.progressBarRelaxed, binding.progressBarFlexed, binding.progressBarStrained).forEach { bar ->
+                        bar.animate().alpha(0f).setDuration(300)
+                            .withEndAction { bar.visibility = View.GONE }
+                            .start()
+                    }
                 } else {
-                    binding.progressBar.animate().alpha(0f).setDuration(300).withEndAction {
-                        binding.progressBar.visibility = View.GONE // Hide progress bar after fade
-                    }.start()
+                    binding.textDiagnostic.animate().alpha(0f).setDuration(300).start()
                 }
             }
         }
 
-        // Set the diagnostic listener.
         (activity as? MainActivity)?.bleManager?.diagnosticListener =
             object : BleManager.DiagnosticListener {
                 override fun onDiagnostic(message: String) {
@@ -106,14 +117,27 @@ class HomeFragment : Fragment() {
                         val settingsPrefs = requireContext().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
                         val isDebugMode = settingsPrefs.getBoolean(DEBUG_MODE_KEY, false)
                         if (isDebugMode) {
-                            if (diagnosticLines.size >= 8) {
-                                diagnosticLines.removeFirst()
-                            }
+                            if (diagnosticLines.size >= 8) diagnosticLines.removeFirst()
                             diagnosticLines.addLast(message)
                             binding.textDiagnostic.text = diagnosticLines.joinToString(separator = "\n")
                         } else {
-                            message.toIntOrNull()?.let { percentage ->
-                                binding.progressBar.progress = percentage.coerceIn(0, 100)
+                            // Expected message format: "Relaxed:XX,Flexed:YY,Strained:ZZ"
+                            val parts = message.split(",")
+                            parts.forEach { part ->
+                                val pair = part.split(":")
+                                if (pair.size == 2) {
+                                    when (pair[0].trim().lowercase()) {
+                                        "relaxed" -> pair[1].trim().removeSuffix("%").toIntOrNull()?.let { value ->
+                                            binding.progressBarRelaxed.progress = value.coerceIn(0, 100)
+                                        }
+                                        "flexed" -> pair[1].trim().removeSuffix("%").toIntOrNull()?.let { value ->
+                                            binding.progressBarFlexed.progress = value.coerceIn(0, 100)
+                                        }
+                                        "strained" -> pair[1].trim().removeSuffix("%").toIntOrNull()?.let { value ->
+                                            binding.progressBarStrained.progress = value.coerceIn(0, 100)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
