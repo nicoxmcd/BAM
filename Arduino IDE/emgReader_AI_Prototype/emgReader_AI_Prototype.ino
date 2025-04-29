@@ -31,12 +31,6 @@ uint32_t calibrateWindow(uint32_t durationMs) {
   return count ? (sum / count) : 0;
 }
 
-// BLE write callback to update calibCmd (not used in auto-cal mode)
-volatile uint8_t calibCmd = 0;
-void calibWriteCallback(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
-  if (len) calibCmd = data[0];
-}
-
 void setup() {
   Serial.begin(115200);
   while (!Serial);
@@ -103,8 +97,8 @@ void loop() {
   }
   Serial.println();
 
-  // --- Build & send BLE packet ---
-  char buf[BLE_PACKET_SIZE];
+  // --- Build & send BLE packet via UART (ASCII) ---
+  char buf[BLE_PACKET_SIZE + 1];
   int idx = 0;
   for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT && idx < BLE_PACKET_SIZE - 6; i++) {
     int pct = int(result.classification[i].value * 100.0f + 0.5f);
@@ -114,7 +108,11 @@ void loop() {
     buf[idx++] = char('0' + (pct % 10));
     buf[idx++] = ' ';
   }
-  if (bleuart.notifyEnabled()) {
-    bleuart.notify((uint8_t*)buf, idx);
-  }
+  buf[idx] = '\0';
+
+  // send over BLE UART
+  bleuart.print(buf);
+
+  // optional: echo on Serial
+  Serial.println(buf);
 }
