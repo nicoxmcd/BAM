@@ -116,28 +116,26 @@ class HomeFragment : Fragment() {
                     requireActivity().runOnUiThread {
                         val settingsPrefs = requireContext().getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
                         val isDebugMode = settingsPrefs.getBoolean(DEBUG_MODE_KEY, false)
+
+
                         if (isDebugMode) {
                             if (diagnosticLines.size >= 8) diagnosticLines.removeFirst()
                             diagnosticLines.addLast(message)
                             binding.textDiagnostic.text = diagnosticLines.joinToString(separator = "\n")
                         } else {
-                            // Expected message format: "Relaxed:XX,Flexed:YY,Strained:ZZ"
-                            val parts = message.split(",")
-                            parts.forEach { part ->
-                                val pair = part.split(":")
-                                if (pair.size == 2) {
-                                    when (pair[0].trim().lowercase()) {
-                                        "relaxed" -> pair[1].trim().removeSuffix("%").toIntOrNull()?.let { value ->
-                                            binding.progressBarRelaxed.progress = value.coerceIn(0, 100)
-                                        }
-                                        "flexed" -> pair[1].trim().removeSuffix("%").toIntOrNull()?.let { value ->
-                                            binding.progressBarFlexed.progress = value.coerceIn(0, 100)
-                                        }
-                                        "strained" -> pair[1].trim().removeSuffix("%").toIntOrNull()?.let { value ->
-                                            binding.progressBarStrained.progress = value.coerceIn(0, 100)
-                                        }
-                                    }
-                                }
+
+                            // Expected message format: "Muscle strain data; F: XX%, R: YY%, S: ZZ%"
+                            val regex = Regex("F:\\s*(\\d+)%.*R:\\s*(\\d+)%.*S:\\s*(\\d+)%", RegexOption.DOT_MATCHES_ALL)
+                            val matchResult = regex.find(message)
+                            if (matchResult != null && matchResult.groupValues.size >= 4) {
+                                binding.progressBarFlexed.progress = matchResult.groupValues[2].toInt()
+                                binding.progressBarRelaxed.progress = matchResult.groupValues[1].toInt()
+                                binding.progressBarStrained.progress = matchResult.groupValues[3].toInt()
+                            } else {
+                                // No useful data found, so set all progress bars to 0.
+                                binding.progressBarFlexed.progress = 0
+                                binding.progressBarRelaxed.progress = 0
+                                binding.progressBarStrained.progress = 0
                             }
                         }
                     }
