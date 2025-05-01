@@ -73,7 +73,6 @@ void loop() {
     else                            rel = (raw - float(baseline)) * invRange;
     inputBuffer[i] = rel;
 
-    // Debug: show raw & normalized
     Serial.print("raw=");   Serial.print(raw);
     Serial.print("  norm="); Serial.println(rel, 4);
 
@@ -86,9 +85,10 @@ void loop() {
   ei_impulse_result_t result;
   if (run_classifier(&signal, &result) != EI_IMPULSE_OK) return;
 
-  // --- Serial print prediction ---
+  // --- Serial print prediction (3 classes) ---
   Serial.print("Prediction: ");
-  for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+  // labels[0] == "Relaxed", [1] == "Flexed", [2] == "Strained"
+  for (size_t i = 0; i < 3; i++) {
     float p = result.classification[i].value * 100.0f;
     Serial.print(result.classification[i].label);
     Serial.print(" ");
@@ -98,21 +98,31 @@ void loop() {
   Serial.println();
 
   // --- Build & send BLE packet via UART (ASCII) ---
+  // Format: "R:XX F:YY S:ZZ "
   char buf[BLE_PACKET_SIZE + 1];
   int idx = 0;
-  for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT && idx < BLE_PACKET_SIZE - 6; i++) {
-    int pct = int(result.classification[i].value * 100.0f + 0.5f);
-    buf[idx++] = result.classification[i].label[0];
-    buf[idx++] = ':';
-    buf[idx++] = char('0' + (pct / 10));
-    buf[idx++] = char('0' + (pct % 10));
-    buf[idx++] = ' ';
-  }
+  // Relaxed -> 'R', Flexed -> 'F', Strained -> 'S'
+  buf[idx++] = 'R'; buf[idx++] = ':';
+  int pct = int(result.classification[0].value * 100 + 0.5f);
+  buf[idx++] = char('0' + (pct / 10));
+  buf[idx++] = char('0' + (pct % 10));
+  buf[idx++] = ' ';
+
+  buf[idx++] = 'F'; buf[idx++] = ':';
+  pct = int(result.classification[1].value * 100 + 0.5f);
+  buf[idx++] = char('0' + (pct / 10));
+  buf[idx++] = char('0' + (pct % 10));
+  buf[idx++] = ' ';
+
+  buf[idx++] = 'S'; buf[idx++] = ':';
+  pct = int(result.classification[2].value * 100 + 0.5f);
+  buf[idx++] = char('0' + (pct / 10));
+  buf[idx++] = char('0' + (pct % 10));
+  buf[idx++] = ' ';
+
   buf[idx] = '\0';
 
-  // send over BLE UART
   bleuart.print(buf);
-
-  // optional: echo on Serial
   Serial.println(buf);
 }
+
