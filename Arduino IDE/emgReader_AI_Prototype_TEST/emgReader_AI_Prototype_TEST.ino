@@ -11,15 +11,14 @@ static float   window_buffer[WINDOW_SIZE];
 static uint16_t window_index = 0;
 
 // Calibration points
-uint32_t baseline    = 0;  // fully relaxed
-uint32_t flexMVC     = 1;  // normal maximum contraction
-uint32_t strainMVC   = 2;  // over‑exertion peak
-float    invRange    = 1.0f;
+uint32_t baseline  = 0;  // fully relaxed
+uint32_t flexMVC   = 1;  // comfortable max contraction
+uint32_t strainMVC = 2;  // over‑exertion peak
+float    invRange  = 1.0f;
 
 // Helper: average ADC over durationMs
 uint32_t calibrateWindow(uint32_t durationMs) {
-  uint32_t sum = 0, cnt = 0;
-  uint32_t end = millis() + durationMs;
+  uint32_t sum = 0, cnt = 0, end = millis() + durationMs;
   while (millis() < end) {
     sum += analogRead(EMG_PIN);
     cnt++;
@@ -42,7 +41,7 @@ void setup() {
   flexMVC = calibrateWindow(5000);
   Serial.print("→ flexMVC = "); Serial.println(flexMVC);
 
-  // 3) Strain MVC (over-exertion) 
+  // 3) Strain MVC (over‑exertion)
   Serial.println("Calibrating strain MVC for 5 s…");
   strainMVC = calibrateWindow(5000);
   Serial.print("→ strainMVC = "); Serial.println(strainMVC);
@@ -56,44 +55,38 @@ void loop() {
   static uint32_t nextMicros = micros();
   const uint32_t interval = 1000000UL / SAMPLE_RATE_HZ;
 
-  if (micros() >= nextMicros) {
-    // 1) read raw
-    int raw = analogRead(EMG_PIN);
+  if (micros() < nextMicros) return;
+  nextMicros += interval;
 
-    // 2) normalize 0…1 across full range [baseline,strainMVC]
-    float norm = (raw <= int(baseline)) ? 0.0f
-               : (raw >= int(strainMVC)) ? 1.0f
-               : float(raw - baseline) * invRange;
-    window_buffer[window_index++] = norm;
+  // 1) Read and normalize
+  int raw = analogRead(EMG_PIN);
+  float norm = (raw <= int(baseline)) ? 0.0f
+             : (raw >= int(strainMVC)) ? 1.0f
+             : float(raw - baseline) * invRange;
+  window_buffer[window_index++] = norm;
 
-    // debug
-    Serial.print("Raw: "); Serial.print(raw);
-    Serial.print("  Norm: "); Serial.println(norm,4);
+  // 2) When window is full, run inference
+  if (window_index < WINDOW_SIZE) return;
+  window_index = 0;
 
-    // 3) when full window → inference
-    if (window_index >= WINDOW_SIZE) {
-      window_index = 0;
-
-      // wrap to signal_t
-      signal_t signal;
-      if (numpy::signal_from_buffer(window_buffer, WINDOW_SIZE, &signal) != 0) {
-        Serial.println("ERR: signal_from_buffer");
-      } else {
-        ei_impulse_result_t res;
-        if (run_classifier(&signal, &res) == EI_IMPULSE_OK) {
-          // print all three confidences
-          Serial.print(">>> Relaxed: ");
-            Serial.print(res.classification[0].value * 100,1); Serial.print("%  ");
-          Serial.print("Flexed: ");
-            Serial.print(res.classification[1].value * 100,1); Serial.print("%  ");
-          Serial.print("Strained: ");
-            Serial.print(res.classification[2].value * 100,1); Serial.println("%");
-        } else {
-          Serial.println("ERR: run_classifier");
-        }
-      }
-    }
-
-    nextMicros += interval;
+  signal_t signal;
+  if (numpy::signal_from_buffer(window_buffer, WINDOW_SIZE, &signal) != 0) {
+    Serial.println("ERR: signal_from_buffer");
+    return;
   }
+  ei_impulse_result_t res;
+  if (run_classifier(&signal, &res) != EI_IMPULSE_OK) {
+    Serial.println("ERR: run_classifier");
+    return;
+  }
+
+  // 3) Print just the predictions
+  Serial.print("Prediction → ");
+  Serial.print("Relaxed:");
+  Serial.print(res.classification[0].value * 100, 1);
+  Serial.print("%  Flexed:");
+  Serial.print(res.classification[1].value * 100, 1);
+  Serial.print("%  Strained:");
+  Serial.print(res.classification[2].value * 100, 1);
+  Serial.println("%");
 }
