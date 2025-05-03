@@ -1,6 +1,6 @@
 #include <bluefruit.h>
 #include <Adafruit_TinyUSB.h>
-#include <BAM_Monitoring_AI_inferencing.h>  // your Edge Impulse inferencing header
+#include <BAM_Monitoring_AI_inferencing.h>  // Edge Impulse inferencing header
 
 #define EMG_PIN        A1
 #define SAMPLE_RATE_HZ 100
@@ -15,18 +15,18 @@ float    invRange  = 1.0f;
 
 // Helper: average ADC over timespan
 uint32_t calibrateWindow(uint32_t ms) {
-  uint32_t sum=0, cnt=0, end=millis()+ms;
-  while(millis()<end) {
+  uint32_t sum = 0, cnt = 0, end = millis() + ms;
+  while (millis() < end) {
     sum += analogRead(EMG_PIN);
     cnt++;
     delay(10);
   }
-  return cnt ? sum/cnt : 0;
+  return cnt ? sum / cnt : 0;
 }
 
 void setup() {
   Serial.begin(115200);
-  while(!Serial);
+  while (!Serial);
 
   // 1) Calibrate resting baseline
   Serial.println("Calibrating baseline (relaxed) for 5 s…");
@@ -56,31 +56,33 @@ void loop() {
     window_buffer[window_index++] = rel;
 
     // debug
-    Serial.print("Raw:"); Serial.print(raw);
-    Serial.print("  Rel:"); Serial.println(rel,4);
+    Serial.print("Raw: ");  Serial.print(raw);
+    Serial.print("  Rel: "); Serial.println(rel, 4);
 
     // --- once we have a full window, run inference
     if (window_index >= WINDOW_SIZE) {
       window_index = 0;
 
       signal_t signal;
-      if (numpy::signal_from_buffer(window_buffer, WINDOW_SIZE, &signal) == 0) {
+      if (numpy::signal_from_buffer(window_buffer, WINDOW_SIZE, &signal) != 0) {
+        Serial.println("ERR: signal_from_buffer failed");
+      }
+      else {
         ei_impulse_result_t r;
         if (run_classifier(&signal, &r) == EI_IMPULSE_OK) {
-          // print all 3 class confidences:
-          Serial.print(">>> Relaxed: "); 
-            Serial.print(r.classification[0].value * 100,1); Serial.print("%   ");
-          Serial.print("Flexed: ");
-            Serial.print(r.classification[1].value * 100,1); Serial.print("%   ");
-          Serial.print("Strained: ");
-            Serial.print(r.classification[2].value * 100,1); Serial.println("%");
+          // print all confidences for Relaxed, Flexed, Strained
+          Serial.print(">>> Confs = [ ");
+          for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
+            Serial.print(r.classification[i].label);
+            Serial.print(": ");
+            Serial.print(r.classification[i].value * 100, 1);
+            Serial.print("%  ");
+          }
+          Serial.println("]");
         }
         else {
           Serial.println("ERR: run_classifier failed");
         }
-      }
-      else {
-        Serial.println("ERR: signal_from_buffer failed");
       }
     }
 
