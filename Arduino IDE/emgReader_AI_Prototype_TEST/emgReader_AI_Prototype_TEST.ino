@@ -1,107 +1,68 @@
-#include <BAM_Monitoring_AI_inferencing.h>
 #include <bluefruit.h>
+#include <Adafruit_TinyUSB.h>
+#include <BAM_Monitoring_AI_inferencing.h>
 
-#define EMG_PIN A1
-// Sampling and Edge Impulse parameters
-#define SAMPLE_RATE_HZ        100
-#define SAMPLE_INTERVAL_US    (1000000UL / SAMPLE_RATE_HZ)
-#define INPUT_FEATURES        EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE
+#define EMG_PIN           A1
+#define SAMPLE_RATE_HZ    100
+// Match this to the window size your model was trained on:
+#define WINDOW_SIZE       128  
 
-// BLE UART (Nordic UART Service)
-BLEUart bleuart;
+static float window_buffer[WINDOW_SIZE];
+static uint16_t window_index = 0;
 
-// Calibration state
-typedef uint32_t u32;
-static u32 baseline = 0, maxMVC = 1;
-static float invRange = 1.0f;
-
-// Buffer for live window
-typedef float feature_t;
-static feature_t inputBuffer[INPUT_FEATURES];
-static size_t bufferIndex = 0;
-
-// --- Helpers ---
-// Simple average on EMG_PIN over durationMs
-u32 calibrateWindow(u32 durationMs) {
-    u32 sum = 0, count = 0;
-    u32 end = millis() + durationMs;
-    while (millis() < end) {
-        sum += analogRead(EMG_PIN);
-        count++;
-        delay(10);
-    }
-    return count ? (sum / count) : 0;
-}
+bool model_ready = false;
 
 void setup() {
-    Serial.begin(115200);
-    while (!Serial);
+  Serial.begin(115200);
+  while (!Serial);
 
-    // Auto-calibrate at startup
-    Serial.println("Auto-calibrating baseline...");
-    baseline = calibrateWindow(5000);
-    Serial.print("Baseline = "); Serial.println(baseline);
-
-    Serial.println("Auto-calibrating MVC...");
-    maxMVC = calibrateWindow(5000);
-    Serial.print("MVC = "); Serial.println(maxMVC);
-
-    invRange = 1.0f / float(maxMVC - baseline);
-    Serial.println("Calibration complete.");
-
-    // BLE UART start
-    Bluefruit.begin();
-    Bluefruit.setName("EMG Sensor");
-
-    bleuart.begin();
-    Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
-    Bluefruit.Advertising.addService(bleuart);
-    Bluefruit.Advertising.start();
-
-    Serial.println("BLE UART ready. Beginning live inference...");
+  // Initialize your inference engine
+  if (!BAM_AI_initialize()) {
+    Serial.println("Failed to initialize AI model!");
+    while (1);
+  }
+  model_ready = true;
+  Serial.println("Model initialized. Starting EMG acquisition...");
 }
 
 void loop() {
-    // 1) Sample at precise rate and fill buffer
-    static u32 nextMicros = micros();
-    if (micros() < nextMicros) return;
-    nextMicros += SAMPLE_INTERVAL_US;
+  static uint32_t nextMicros = micros();
+  const uint32_t interval = 1000000UL / SAMPLE_RATE_HZ;
 
-    int raw = analogRead(EMG_PIN);
-    float norm;
-    if      (raw <= int(baseline)) norm = 0.0f;
-    else if (raw >= int(maxMVC))   norm = 1.0f;
-    else                             norm = (raw - float(baseline)) * invRange;
+  if (micros() >= nextMicros) {
+    // 1) Read EMG
+    int rawValue = analogRead(EMG_PIN);
+    // 2) Normalize / convert as needed by your model
+    float normalized = (rawValue - 512) / 512.0f;
+    // 3) Store into sliding window
+    window_buffer[window_index++] = normalized;
 
-    // store in circular buffer
-    inputBuffer[bufferIndex++] = norm;
-    // debug raw + norm
-    Serial.print("raw="); Serial.print(raw);
-    Serial.print("  norm="); Serial.println(norm, 4);
+    // Print raw for monitoring
+    Serial.print("Raw:");
+    Serial.print(rawValue);
 
-    if (bufferIndex < INPUT_FEATURES) return;
-    bufferIndex = 0;  // reset for next window
+    // 4) When window is full, run inference
+    if (window_index >= WINDOW_SIZE && model_ready) {
+      window_index = 0;  // reset for next window
 
-    // 2) Prepare and run classifier
-    signal_t signal;
-    if (numpy::signal_from_buffer(inputBuffer, INPUT_FEATURES, &signal) != 0) {
-        Serial.println("ERR: signal_from_buffer");
-        return;
+      // Prepare a result struct (adjust type to your SDK)
+      BAM_AI_Result result;
+      bool ok = BAM_AI_run_inference(window_buffer, WINDOW_SIZE, &result);
+
+      if (ok) {
+        // Print the top prediction
+        Serial.print("  Prediction: ");
+        Serial.print(result.label);
+        Serial.print(" (");
+        Serial.print(result.confidence * 100, 1);
+        Serial.println("%)");
+      } else {
+        Serial.println("  Inference error");
+      }
+    } else {
+      Serial.println();
     }
-    ei_impulse_result_t result;
-    if (run_classifier(&signal, &result) != EI_IMPULSE_OK) {
-        Serial.println("ERR: run_classifier");
-        return;
-    }
 
-    // 3) Print prediction
-    Serial.print("Prediction: ");
-    for (size_t i = 0; i < EI_CLASSIFIER_LABEL_COUNT; i++) {
-        float p = result.classification[i].value * 100.0f;
-        Serial.print(result.classification[i].label);
-        Serial.print(" ");
-        Serial.print(p, 1);
-        Serial.print("%  ");
-    }
-    Serial.println();
+    nextMicros += interval;
+  }
 }
