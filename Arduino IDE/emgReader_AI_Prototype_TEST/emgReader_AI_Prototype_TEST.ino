@@ -1,89 +1,51 @@
-#include <bluefruit.h>
-#include <Adafruit_TinyUSB.h>
-#include <BAM_Monitoring_AI_inferencing.h>  // Edge Impulse inferencing
+#include <BAM_Monitoring_AI_inferencing.h>
 
-#define EMG_PIN        A1
-#define SAMPLE_RATE_HZ 100
-#define WINDOW_SIZE    EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE
-
-// Buffer for EI; we’ll flood it with the latest sample
-static float window_buffer[WINDOW_SIZE];
-
-// Calibration points
-uint32_t baseline  = 0;  // relaxed MVC
-uint32_t flexMVC   = 1;  // max‐comfortable MVC
-float    invRange  = 1.0f;
-
-uint32_t calibrateWindow(uint32_t durationMs) {
-  uint32_t sum = 0, cnt = 0, end = millis() + durationMs;
-  while (millis() < end) {
-    sum += analogRead(EMG_PIN);
-    cnt++;
-    delay(10);
-  }
-  return cnt ? sum / cnt : 0;
-}
+// Set up buffer for one feature (assuming 1D input like analogRead)
+float features[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE];
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial);
-
-  // Calibrate just the two MVC points
-  Serial.println("Calibrating baseline (relaxed) for 5 s…");
-  baseline = calibrateWindow(5000);
-  Serial.print("→ baseline = "); Serial.println(baseline);
-
-  Serial.println("Calibrating flex MVC for 5 s…");
-  flexMVC = calibrateWindow(5000);
-  Serial.print("→ flexMVC = "); Serial.println(flexMVC);
-
-  invRange = 1.0f / float(flexMVC - baseline);
-
-  Serial.println("Calibration complete. Live inferencing every sample:");
+  delay(1000);
 }
 
 void loop() {
-  static uint32_t nextMicros = micros();
-  const uint32_t interval = 1000000UL / SAMPLE_RATE_HZ;
-  if (micros() < nextMicros) return;
-  nextMicros += interval;
+  int rawValue = analogRead(A0);  // Replace A0 with your sensor pin
 
-  // 1) Read raw
-  int raw = analogRead(EMG_PIN);
+  // Normalize the input (Edge Impulse usually scales inputs to [0,1])
+  float normalized = (float)rawValue / 1023.0;
+  features[0] = normalized;
 
-  // 2) Normalize [baseline…flexMVC] → [0…1]
-  float norm;
-  if (raw <= int(baseline)) {
-    norm = 0.0f;
-  } else if (raw >= int(flexMVC)) {
-    norm = 1.0f;
-  } else {
-    norm = float(raw - baseline) * invRange;
-  }
-
-  // 3) Flood the EI window buffer with this single value
-  for (int i = 0; i < WINDOW_SIZE; i++) {
-    window_buffer[i] = norm;
-  }
-
-  // 4) Build signal and run inference
+  // Create the signal object expected by Edge Impulse
   signal_t signal;
-  if (numpy::signal_from_buffer(window_buffer, WINDOW_SIZE, &signal) != 0) {
-    Serial.println("ERR: signal_from_buffer");
-    return;
-  }
-  ei_impulse_result_t res;
-  if (run_classifier(&signal, &res) != EI_IMPULSE_OK) {
-    Serial.println("ERR: run_classifier");
+  int err = numpy::signal_from_buffer(features, EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE, &signal);
+  if (err != 0) {
+    ei_printf("Failed to create signal from buffer (%d)\n", err);
     return;
   }
 
-  // 5) Print RAW + prediction
-  Serial.print("RAW:"); Serial.print(raw);
-  Serial.print("  → Relaxed:");
-  Serial.print(res.classification[0].value * 100, 1); Serial.print("%");
-  Serial.print("  Flexed:");
-  Serial.print(res.classification[1].value * 100, 1); Serial.print("%");
-  Serial.print("  Strained:");
-  Serial.print(res.classification[2].value * 100, 1); Serial.println("%");
+  // Run the inference
+  ei_impulse_result_t result = { 0 };
+  EI_IMPULSE_ERROR res = run_classifier(&signal, &result, false);
+
+  if (res != EI_IMPULSE_OK) {
+    ei_printf("Inference failed (%d)\n", res);
+    return;
+  }
+
+  // Output RAW value
+  Serial.print("RAW:");
+  Serial.print(rawValue);
+  Serial.print("  → ");
+
+  // Parse and print each class probability
+  for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
+    Serial.print(result.classification[ix].label);
+    Serial.print(":");
+    Serial.print(result.classification[ix].value * 100, 1);
+    Serial.print("%  ");
+  }
+
+  Serial.println();
+
+  delay(500);  // Adjust sampling rate as needed
 }
