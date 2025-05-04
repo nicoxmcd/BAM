@@ -6,6 +6,7 @@
 #define SAMPLE_RATE_HZ 100
 #define WINDOW_SIZE    EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE
 #define ENV_WINDOW     50     // 50 samples @100Hz = 0.5s RMS
+#define SUMMARY_MS     5000   // report every 5 seconds
 
 // Rolling sample buffer for EI
 static float   window_buffer[WINDOW_SIZE];
@@ -16,10 +17,15 @@ static float   env_buffer[ENV_WINDOW];
 static uint8_t env_index = 0;
 
 // Calibration points
-uint32_t baseline  = 0;  // fully relaxed
-uint32_t flexMVC   = 1;  // comfortable max contraction
-uint32_t strainMVC = 2;  // over-exertion peak
+uint32_t baseline  = 0;  
+uint32_t flexMVC   = 1;  
+uint32_t strainMVC = 2;  
 float    invRange  = 1.0f;
+
+// Accumulators for 5 s summary
+static float   sum_prob[3] = {0.0f, 0.0f, 0.0f};
+static uint16_t inf_count  = 0;
+static uint32_t last_summary_ms = 0;
 
 // Helper: average ADC over durationMs
 uint32_t calibrateWindow(uint32_t durationMs) {
@@ -36,24 +42,24 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 
-  // 1) Baseline (relaxed)
+  // Calibration
   Serial.println("Calibrating baseline for 5 s…");
   baseline = calibrateWindow(5000);
   Serial.print("→ baseline = "); Serial.println(baseline);
 
-  // 2) Flex MVC (comfortable max)
   Serial.println("Calibrating flex MVC for 5 s…");
   flexMVC = calibrateWindow(5000);
   Serial.print("→ flexMVC = "); Serial.println(flexMVC);
 
-  // 3) Strain MVC (over-exertion peak)
   Serial.println("Calibrating strain MVC for 5 s…");
   strainMVC = calibrateWindow(5000);
   Serial.print("→ strainMVC = "); Serial.println(strainMVC);
 
-  // Build normalization scale from baseline…strainMVC
   invRange = 1.0f / float(strainMVC - baseline);
-  Serial.println("Calibration complete. Open Serial Plotter at 115200 to view RAW, NORM, RMS");
+
+  Serial.println("Calibration complete.");
+  Serial.println("Beginning live inference. Summary every 5 s.");
+  last_summary_ms = millis();
 }
 
 void loop() {
@@ -63,39 +69,30 @@ void loop() {
   if (micros() < nextMicros) return;
   nextMicros += interval;
 
-  // --- 1) Read raw EMG
+  // 1) Read raw EMG
   int raw = analogRead(EMG_PIN);
 
-  // --- 2) Full-wave rectify around baseline
+  // 2) Full‐wave rectify around baseline
   float dev = float(raw) - float(baseline);
   if (dev < 0) dev = -dev;
 
-  // --- 3) Normalize to [0..1]
+  // 3) Normalize to [0..1]
   float norm = dev * invRange;
-  if (norm > 1.0f) norm = 1.0f;
-  if (norm < 0.0f) norm = 0.0f;
+  norm = (norm > 1.0f) ? 1.0f : (norm < 0.0f) ? 0.0f : norm;
 
-  // --- 4) Build RMS envelope buffer
+  // 4) Build RMS envelope buffer
   env_buffer[env_index++] = norm;
   if (env_index >= ENV_WINDOW) env_index = 0;
 
-  // compute RMS of last ENV_WINDOW samples
+  // Compute RMS
   float sumsq = 0.0f;
-  for (int i = 0; i < ENV_WINDOW; i++) {
-    sumsq += env_buffer[i] * env_buffer[i];
-  }
+  for (int i = 0; i < ENV_WINDOW; i++) sumsq += env_buffer[i] * env_buffer[i];
   float rms = sqrtf(sumsq / ENV_WINDOW);
 
-  // --- 5) Debug: print RAW, NORM, RMS for Serial Plotter
-  // Format: RAW:<adc>  NORM:<0–1>  RMS:<0–1>
-  Serial.print("RAW:");   Serial.print(raw);
-  Serial.print("  NORM:"); Serial.print(norm, 3);
-  Serial.print("  RMS:");  Serial.println(rms, 3);
-
-  // --- 6) Fill the EI buffer with rms
+  // 5) Fill the EI input buffer
   window_buffer[window_index++] = rms;
 
-  // --- 7) Once the window is full, run inference
+  // 6) When window full, run inference
   if (window_index >= WINDOW_SIZE) {
     window_index = 0;
 
@@ -110,14 +107,42 @@ void loop() {
       return;
     }
 
-    // --- 8) Print the predictions
-    Serial.print("Prediction → ");
-    Serial.print("Relaxed:");
-    Serial.print(res.classification[0].value * 100, 1);
-    Serial.print("%  Flexed:");
-    Serial.print(res.classification[1].value * 100, 1);
-    Serial.print("%  Strained:");
-    Serial.print(res.classification[2].value * 100, 1);
-    Serial.println("%");
+    // 7) Accumulate probabilities
+    for (uint8_t i = 0; i < 3; i++) {
+      sum_prob[i] += res.classification[i].value;
+    }
+    inf_count++;
+
+    // 8) Every SUMMARY_MS ms, print the averaged result
+    uint32_t now = millis();
+    if (now - last_summary_ms >= SUMMARY_MS) {
+      Serial.println();
+      Serial.print("=== 5s Summary → ");
+      // Compute average & find max class
+      float best_val = -1;
+      int   best_i   = 0;
+      for (uint8_t i = 0; i < 3; i++) {
+        float avg = sum_prob[i] / float(inf_count);
+        Serial.print(i==0 ? "Relaxed:" : i==1 ? "Flexed:" : "Strained:");
+        Serial.print(avg * 100, 1);
+        Serial.print("%  ");
+        if (avg > best_val) {
+          best_val = avg;
+          best_i   = i;
+        }
+      }
+      Serial.print("→ Final: ");
+      Serial.print(best_i==0 ? "Relaxed" : best_i==1 ? "Flexed" : "Strained");
+      Serial.print(" (");
+      Serial.print(best_val * 100, 1);
+      Serial.println("%)");
+      Serial.println("==========================");
+      Serial.println();
+
+      // Reset for next epoch
+      sum_prob[0] = sum_prob[1] = sum_prob[2] = 0.0f;
+      inf_count   = 0;
+      last_summary_ms += SUMMARY_MS;
+    }
   }
 }
