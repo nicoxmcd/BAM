@@ -20,7 +20,8 @@ static float      inputBuffer[INPUT_FEATURES];
 
 // Simple average over durationMs on A1
 uint32_t calibrateWindow(uint32_t durationMs) {
-  uint32_t sum = 0, count = 0, end = millis() + durationMs;
+  uint32_t sum = 0, count = 0;
+  uint32_t end = millis() + durationMs;
   while (millis() < end) {
     sum   += analogRead(A1);
     count += 1;
@@ -37,25 +38,21 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 
-  // BLE init
   Bluefruit.begin();
   Bluefruit.setName("EMG Sensor");
 
-  // EMG inference service
   emgService.begin();
   emgChar.setProperties(CHR_PROPS_NOTIFY);
   emgChar.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   emgChar.setFixedLen(BLE_PACKET_SIZE);
   emgChar.begin();
 
-  // Calibration service
   calibService.begin();
   calibChar.setProperties(CHR_PROPS_WRITE);
   calibChar.setPermission(SECMODE_OPEN, SECMODE_OPEN);
   calibChar.setWriteCallback(calibWriteCallback, false);
   calibChar.begin();
 
-  // Advertise
   Bluefruit.Advertising.addService(emgService);
   Bluefruit.Advertising.addService(calibService);
   Bluefruit.Advertising.addName();
@@ -65,12 +62,11 @@ void setup() {
 }
 
 void loop() {
-  // Handle calibration commands
+  // 1) Handle calibration commands
   if (calibCmd == 0x01) {
     Serial.println("Calibrating baseline (relaxed)...");
     baseline = calibrateWindow(5000);
     Serial.print("Baseline = "); Serial.println(baseline);
-    // update range
     invRange = 1.0f / float(maxMVC - baseline);
     calibCmd = 0;
   }
@@ -78,12 +74,11 @@ void loop() {
     Serial.println("Calibrating MVC (flexed)...");
     maxMVC = calibrateWindow(5000);
     Serial.print("MVC = "); Serial.println(maxMVC);
-    // update range
     invRange = 1.0f / float(maxMVC - baseline);
     calibCmd = 0;
   }
 
-  // Collect a window of normalized EMG
+  // 2) Collect a window of normalized EMG
   for (size_t i = 0; i < INPUT_FEATURES; i++) {
     int raw = analogRead(A1);
     float rel;
@@ -94,20 +89,19 @@ void loop() {
     delay(SAMPLE_INTERVAL_MS);
   }
 
-  // Run inference
+  // 3) Run inference
   signal_t signal;
   if (numpy::signal_from_buffer(inputBuffer, INPUT_FEATURES, &signal) != 0) {
     Serial.println("ERR: signal_from_buffer");
-    continue;
+    return;
   }
   ei_impulse_result_t result;
   if (run_classifier(&signal, &result) != EI_IMPULSE_OK) {
     Serial.println("ERR: run_classifier");
-    continue;
+    return;
   }
 
-  // Build a CSV string of the three states
-  // using first letter of each label: R,F,S
+  // 4) Build a CSV string of the three states: R,F,S
   char buf[BLE_PACKET_SIZE];
   int pct0 = int(result.classification[0].value * 100 + 0.5f);
   int pct1 = int(result.classification[1].value * 100 + 0.5f);
@@ -117,12 +111,12 @@ void loop() {
     pct0, pct1, pct2
   );
 
-  // Send over BLE notify
+  // 5) Send over BLE notify
   if (emgChar.notifyEnabled()) {
     emgChar.notify((uint8_t*)buf, len);
   }
 
-  // Also log to Serial for debugging
+  // 6) Echo to Serial for debugging
   Serial.print("Sent BLE → ");
   Serial.println(buf);
 }
