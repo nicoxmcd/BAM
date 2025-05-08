@@ -125,14 +125,13 @@ class HomeFragment : Fragment() {
                         } else {
 
                             // Expected message format: "Muscle strain data; F: XX%, R: YY%, S: ZZ%"
-                            val regex = Regex("F:\\s*(\\d+)%.*R:\\s*(\\d+)%.*S:\\s*(\\d+)%", RegexOption.DOT_MATCHES_ALL)
-                            val matchResult = regex.find(message)
-                            if (matchResult != null && matchResult.groupValues.size >= 4) {
-                                binding.progressBarFlexed.progress = matchResult.groupValues[2].toInt()
-                                binding.progressBarRelaxed.progress = matchResult.groupValues[1].toInt()
-                                binding.progressBarStrained.progress = matchResult.groupValues[3].toInt()
-                            } else {
-                                // No useful data found, so set all progress bars to 0.
+                            // Note that flexed and relaxed values are swapped in the message, so the flexed bar goes in the middle
+                            val regex = Regex("Muscle\\s+strain\\s+data:\\s*R:\\s*(\\d+),\\s*F:\\s*(\\d+),\\s*S:\\s*(\\d+)", RegexOption.DOT_MATCHES_ALL)
+                            regex.find(message)?.destructured?.let { (rVal, fVal, sVal) ->
+                                binding.progressBarRelaxed.progress = rVal.toInt()
+                                binding.progressBarFlexed.progress = fVal.toInt()
+                                binding.progressBarStrained.progress = sVal.toInt()
+                            } ?: run {
                                 binding.progressBarFlexed.progress = 0
                                 binding.progressBarRelaxed.progress = 0
                                 binding.progressBarStrained.progress = 0
