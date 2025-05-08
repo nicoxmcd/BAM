@@ -20,8 +20,7 @@ static float      inputBuffer[INPUT_FEATURES];
 
 // Simple average over durationMs on A1
 uint32_t calibrateWindow(uint32_t durationMs) {
-  uint32_t sum = 0, count = 0;
-  uint32_t end = millis() + durationMs;
+  uint32_t sum = 0, count = 0, end = millis() + durationMs;
   while (millis() < end) {
     sum   += analogRead(A1);
     count += 1;
@@ -35,24 +34,29 @@ void calibWriteCallback(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t le
 }
 
 void setup() {
+  // Start CDC so Serial.print() works if USB is plugged, but don't block if not
   Serial.begin(115200);
-  while (!Serial);
+  delay(200);  
 
+  // Begin BLE
   Bluefruit.begin();
   Bluefruit.setName("EMG Sensor");
 
+  // EMG inference service
   emgService.begin();
   emgChar.setProperties(CHR_PROPS_NOTIFY);
   emgChar.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   emgChar.setFixedLen(BLE_PACKET_SIZE);
   emgChar.begin();
 
+  // Calibration service
   calibService.begin();
   calibChar.setProperties(CHR_PROPS_WRITE);
   calibChar.setPermission(SECMODE_OPEN, SECMODE_OPEN);
   calibChar.setWriteCallback(calibWriteCallback, false);
   calibChar.begin();
 
+  // Advertise both
   Bluefruit.Advertising.addService(emgService);
   Bluefruit.Advertising.addService(calibService);
   Bluefruit.Advertising.addName();
