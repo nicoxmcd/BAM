@@ -11,16 +11,18 @@ BLECharacteristic emgChar(0x2A58);
 BLEService        calibService(0x181B);
 BLECharacteristic calibChar(0x2A59);
 
+// Calibration state
 volatile uint8_t  calibCmd = 0;
 uint32_t          baseline = 0, maxMVC = 1;
 float             invRange  = 1.0f;
 
-// Pre‐allocated input buffer
+// Input buffer
 static float      inputBuffer[INPUT_FEATURES];
 
 // Simple average over durationMs on A1
 uint32_t calibrateWindow(uint32_t durationMs) {
-  uint32_t sum = 0, count = 0, end = millis() + durationMs;
+  uint32_t sum = 0, count = 0;
+  uint32_t end = millis() + durationMs;
   while (millis() < end) {
     sum   += analogRead(A1);
     count += 1;
@@ -34,22 +36,18 @@ void calibWriteCallback(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t le
 }
 
 void setup() {
-  // Start CDC so Serial.print() works if USB is plugged, but don't block if not
-  Serial.begin(115200);
-  delay(200);  
-
-  // Begin BLE
+  // --- Start BLE only ---
   Bluefruit.begin();
   Bluefruit.setName("EMG Sensor");
 
-  // EMG inference service
+  // EMG notify service
   emgService.begin();
   emgChar.setProperties(CHR_PROPS_NOTIFY);
   emgChar.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   emgChar.setFixedLen(BLE_PACKET_SIZE);
   emgChar.begin();
 
-  // Calibration service
+  // Calibration write service
   calibService.begin();
   calibChar.setProperties(CHR_PROPS_WRITE);
   calibChar.setPermission(SECMODE_OPEN, SECMODE_OPEN);
@@ -61,66 +59,46 @@ void setup() {
   Bluefruit.Advertising.addService(calibService);
   Bluefruit.Advertising.addName();
   Bluefruit.Advertising.start();
-
-  Serial.println("BLE & ML ready. Send 0x01 for baseline, 0x02 for MVC.");
 }
 
 void loop() {
-  // 1) Handle calibration commands
+  // 1) Handle calibration
   if (calibCmd == 0x01) {
-    Serial.println("Calibrating baseline (relaxed)...");
     baseline = calibrateWindow(5000);
-    Serial.print("Baseline = "); Serial.println(baseline);
     invRange = 1.0f / float(maxMVC - baseline);
     calibCmd = 0;
   }
   else if (calibCmd == 0x02) {
-    Serial.println("Calibrating MVC (flexed)...");
-    maxMVC = calibrateWindow(5000);
-    Serial.print("MVC = "); Serial.println(maxMVC);
+    maxMVC   = calibrateWindow(5000);
     invRange = 1.0f / float(maxMVC - baseline);
     calibCmd = 0;
   }
 
-  // 2) Collect a window of normalized EMG
+  // 2) Collect normalized EMG window
   for (size_t i = 0; i < INPUT_FEATURES; i++) {
     int raw = analogRead(A1);
-    float rel;
-    if      (raw <= int(baseline)) rel = 0.0f;
-    else if (raw >= int(maxMVC))   rel = 1.0f;
-    else                            rel = (raw - float(baseline)) * invRange;
+    float rel = (raw <= baseline) ? 0.0f
+              : (raw >= maxMVC)   ? 1.0f
+              : (raw - float(baseline)) * invRange;
     inputBuffer[i] = rel;
     delay(SAMPLE_INTERVAL_MS);
   }
 
-  // 3) Run inference
+  // 3) Inference
   signal_t signal;
-  if (numpy::signal_from_buffer(inputBuffer, INPUT_FEATURES, &signal) != 0) {
-    Serial.println("ERR: signal_from_buffer");
-    return;
-  }
+  if (numpy::signal_from_buffer(inputBuffer, INPUT_FEATURES, &signal) != 0) return;
   ei_impulse_result_t result;
-  if (run_classifier(&signal, &result) != EI_IMPULSE_OK) {
-    Serial.println("ERR: run_classifier");
-    return;
-  }
+  if (run_classifier(&signal, &result) != EI_IMPULSE_OK)   return;
 
-  // 4) Build a CSV string of the three states: R,F,S
+  // 4) Build notification string
   char buf[BLE_PACKET_SIZE];
   int pct0 = int(result.classification[0].value * 100 + 0.5f);
   int pct1 = int(result.classification[1].value * 100 + 0.5f);
   int pct2 = int(result.classification[2].value * 100 + 0.5f);
-  int len = snprintf(buf, sizeof(buf),
-    "R:%d,F:%d,S:%d",
-    pct0, pct1, pct2
-  );
+  int len = snprintf(buf, sizeof(buf), "R:%d,F:%d,S:%d", pct0, pct1, pct2);
 
-  // 5) Send over BLE notify
+  // 5) Send over BLE
   if (emgChar.notifyEnabled()) {
     emgChar.notify((uint8_t*)buf, len);
   }
-
-  // 6) Echo to Serial for debugging
-  Serial.print("Sent BLE → ");
-  Serial.println(buf);
 }
